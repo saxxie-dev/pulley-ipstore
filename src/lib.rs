@@ -28,7 +28,7 @@ impl<'a> IPStore for PulleyIPStore<'a> {
     fn request_handled(&mut self, ip_address: IpAddr) -> () {
         let count = &1;
         self.request_counts.insert(ip_address, count);
-        self.top100_list[0] = Some((ip_address, count));
+        self.top100_list[self.top100_set.len()] = Some((ip_address, count));
         self.top100_set.insert(ip_address);
     }
 
@@ -106,7 +106,7 @@ mod tests {
             Some(ip2),
             "Second element should be second ip address which was added"
         );
-        assert_eq!(ip_store.top100()[1], None, "Third element should be None");
+        assert_eq!(ip_store.top100()[2], None, "Third element should be None");
     }
 
     #[test]
