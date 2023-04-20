@@ -41,10 +41,7 @@ impl<'a> IPStore for PulleyIPStore<'a> {
 #[cfg(test)]
 mod tests {
     use rand::{thread_rng, Rng};
-    use std::{
-        collections::{HashMap, HashSet},
-        net::{IpAddr, Ipv4Addr},
-    };
+    use std::net::{IpAddr, Ipv4Addr};
 
     use crate::{IPStore, PulleyIPStore};
 
@@ -61,25 +58,25 @@ mod tests {
 
     #[test]
     fn it_handles_a_single_request() {
-        let mut ipStore = PulleyIPStore::new();
-        let myIp: IpAddr = random_ip();
-        ipStore.request_handled(myIp);
+        let mut ip_store = PulleyIPStore::new();
+        let my_ip: IpAddr = random_ip();
+        ip_store.request_handled(my_ip);
         assert_eq!(
-            ipStore.top100()[0],
-            Some(myIp),
+            ip_store.top100()[0],
+            Some(my_ip),
             "First element should be the ip address which was added"
         );
-        assert_eq!(ipStore.top100()[1], None, "Second element should be None");
+        assert_eq!(ip_store.top100()[1], None, "Second element should be None");
     }
 
     #[test]
     fn it_successfully_clears() {
-        let mut ipStore = PulleyIPStore::new();
-        let myIp: IpAddr = random_ip();
-        ipStore.request_handled(myIp);
-        ipStore.clear();
+        let mut ip_store = PulleyIPStore::new();
+        let my_ip: IpAddr = random_ip();
+        ip_store.request_handled(my_ip);
+        ip_store.clear();
         assert_eq!(
-            ipStore.top100()[0],
+            ip_store.top100()[0],
             None,
             "First element should be None after clearing"
         );
@@ -87,44 +84,44 @@ mod tests {
 
     #[test]
     fn it_handles_multiple_request() {
-        let mut ipStore = PulleyIPStore::new();
+        let mut ip_store = PulleyIPStore::new();
         let ip1: IpAddr = random_ip();
         let ip2: IpAddr = random_ip();
-        ipStore.request_handled(ip1);
-        ipStore.request_handled(ip2);
+        ip_store.request_handled(ip1);
+        ip_store.request_handled(ip2);
 
         assert_eq!(
-            ipStore.top100()[0],
+            ip_store.top100()[0],
             Some(ip1),
             "First element should be the first ip address which was added"
         );
         assert_eq!(
-            ipStore.top100()[1],
+            ip_store.top100()[1],
             Some(ip2),
             "Second element should be second ip address which was added"
         );
-        assert_eq!(ipStore.top100()[1], None, "Third element should be None");
+        assert_eq!(ip_store.top100()[1], None, "Third element should be None");
     }
 
     #[test]
     fn it_handles_reordering_after_multiple_request() {
-        let mut ipStore = PulleyIPStore::new();
+        let mut ip_store = PulleyIPStore::new();
         let ip1: IpAddr = random_ip();
         let ip2: IpAddr = random_ip();
-        ipStore.request_handled(ip1);
-        ipStore.request_handled(ip2);
-        ipStore.request_handled(ip2);
+        ip_store.request_handled(ip1);
+        ip_store.request_handled(ip2);
+        ip_store.request_handled(ip2);
 
         assert_eq!(
-            ipStore.top100()[0],
+            ip_store.top100()[0],
             Some(ip2),
             "First element should be the second ip address, which was handled twice"
         );
         assert_eq!(
-            ipStore.top100()[1],
+            ip_store.top100()[1],
             Some(ip1),
             "Second element should be first ip address, which was handled once"
         );
-        assert_eq!(ipStore.top100()[1], None, "Third element should be None");
+        assert_eq!(ip_store.top100()[1], None, "Third element should be None");
     }
 }
