@@ -38,7 +38,9 @@ impl<'a> IPStore for PulleyIPStore<'a> {
     }
 
     fn clear(&mut self) -> () {
-        todo!()
+        self.request_counts = HashMap::new();
+        self.top100_list = [None; 100];
+        self.top100_set = HashSet::new();
     }
 }
 
