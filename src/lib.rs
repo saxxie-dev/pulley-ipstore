@@ -26,11 +26,15 @@ impl<'a> PulleyIPStore<'a> {
 
 impl<'a> IPStore for PulleyIPStore<'a> {
     fn request_handled(&mut self, ip_address: IpAddr) -> () {
-        todo!()
+        let count = &1;
+        self.request_counts.insert(ip_address, count);
+        self.top100_list[0] = Some((ip_address, count));
+        self.top100_set.insert(ip_address);
     }
 
     fn top100(&self) -> [Option<IpAddr>; 100] {
-        todo!()
+        self.top100_list
+            .map(|x| -> Option<IpAddr> { x.map(|y| -> IpAddr { y.0 }) })
     }
 
     fn clear(&mut self) -> () {
