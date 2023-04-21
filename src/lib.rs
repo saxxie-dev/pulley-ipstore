@@ -26,6 +26,15 @@ impl PulleyIPStore {
             top100_size: 0,
         }
     }
+
+    fn swap(&mut self, a: usize, b: usize) -> () {
+        let temp_ip = self.top100_list[a];
+        let temp_count = self.top100_counts[a];
+        self.top100_list[a] = self.top100_list[b];
+        self.top100_counts[a] = self.top100_counts[b];
+        self.top100_list[b] = temp_ip;
+        self.top100_counts[b] = temp_count;
+    }
 }
 
 impl IPStore for PulleyIPStore {
@@ -38,23 +47,22 @@ impl IPStore for PulleyIPStore {
         *count += 1;
 
         if was_in_top100 {
+            // If already contained in top 100, we only need to reorder
             let previous_index = self
                 .top100_list
                 .iter()
                 .position(|&x| x == Some(ip_address))
                 .unwrap();
             let next_index = self.top100_counts.iter().position(|&x| x < *count).unwrap();
-            self.top100_list[previous_index] = self.top100_list[next_index];
-            self.top100_counts[previous_index] = self.top100_counts[next_index];
-            self.top100_list[next_index] = Some(ip_address);
-            self.top100_counts[next_index] = *count;
+            self.top100_counts[previous_index] = *count;
+            self.swap(previous_index, next_index);
         } else if self.top100_size < TOP_COUNT {
             // If we are still finding first 100 IP addreses, just need to add
             self.top100_list[self.top100_size] = Some(ip_address);
             self.top100_counts[self.top100_size] = 1;
             self.top100_size += 1;
         } else if was_on_threshold {
-            // If we just crossed the threshold
+            // If we just crossed the threshold, and may need to move something from outside of the top 100 to inside the top 100
             let opt_previous_index = self.top100_list.iter().position(|&x| x == Some(ip_address));
             let previous_index = match opt_previous_index {
                 None => {
@@ -66,10 +74,8 @@ impl IPStore for PulleyIPStore {
             };
 
             let next_index = self.top100_counts.iter().position(|&x| x < *count).unwrap();
-            self.top100_list[previous_index] = self.top100_list[next_index];
-            self.top100_counts[previous_index] = self.top100_counts[next_index];
-            self.top100_list[next_index] = Some(ip_address);
-            self.top100_counts[next_index] = *count;
+            self.top100_counts[previous_index] = *count;
+            self.swap(previous_index, next_index);
         }
     }
 
@@ -200,7 +206,7 @@ mod tests {
 
         let sample_indices: Vec<usize> = sample_triangularly::<40000000>(ipaddrs.len() - 1);
 
-        // Measure insertions
+        // Measure insertion perf
         let insertion_start_time = Instant::now();
         for i in sample_indices {
             ip_store.request_handled(IpAddr::V4(ipaddrs[i]));
@@ -216,7 +222,7 @@ mod tests {
             "Should take at most 1ms to insert"
         );
 
-        // Measure extracting top 100
+        // Measure extracting top 100 perf
         let extraction_start_time = Instant::now();
         ip_store.top100();
         let extraction_duration = extraction_start_time.elapsed();
