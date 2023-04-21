@@ -36,18 +36,14 @@ impl IPStore for PulleyIPStore {
         let was_in_top100 = *count > threshold;
         let was_on_threshold = *count == threshold;
         *count += 1;
+
         if was_in_top100 {
             let previous_index = self
                 .top100_list
                 .iter()
                 .position(|&x| x == Some(ip_address))
                 .unwrap();
-            let next_index = self
-                .top100_counts
-                .iter()
-                .rev()
-                .position(|&x| x < *count)
-                .unwrap_or(0);
+            let next_index = self.top100_counts.iter().position(|&x| x < *count).unwrap();
             self.top100_list[previous_index] = self.top100_list[next_index];
             self.top100_counts[previous_index] = self.top100_counts[next_index];
             self.top100_list[next_index] = Some(ip_address);
@@ -58,11 +54,27 @@ impl IPStore for PulleyIPStore {
             self.top100_counts[self.top100_size] = 1;
             self.top100_size += 1;
         } else if was_on_threshold {
+            // If we just crossed the threshold
+            let opt_previous_index = self.top100_list.iter().position(|&x| x == Some(ip_address));
+            let previous_index = match opt_previous_index {
+                None => {
+                    self.top100_list[TOP_COUNT - 1] = Some(ip_address);
+                    self.top100_counts[TOP_COUNT - 1] = *count - 1;
+                    TOP_COUNT - 1
+                }
+                Some(p) => p,
+            };
+
+            let next_index = self.top100_counts.iter().position(|&x| x < *count).unwrap();
+            self.top100_list[previous_index] = self.top100_list[next_index];
+            self.top100_counts[previous_index] = self.top100_counts[next_index];
+            self.top100_list[next_index] = Some(ip_address);
+            self.top100_counts[next_index] = *count;
         }
     }
 
     fn top100(&self) -> [Option<IpAddr>; TOP_COUNT] {
-        println!("{:?}", self.top100_counts);
+        // println!("{:?}", self.top100_counts);
         self.top100_list
     }
 
@@ -76,8 +88,11 @@ impl IPStore for PulleyIPStore {
 
 #[cfg(test)]
 mod tests {
-    use rand::{thread_rng, Rng};
-    use std::net::{IpAddr, Ipv4Addr};
+    use rand::{distributions::Uniform, thread_rng, Rng};
+    use std::{
+        net::{IpAddr, Ipv4Addr},
+        time::{Duration, Instant},
+    };
 
     use crate::{IPStore, PulleyIPStore};
 
@@ -161,16 +176,20 @@ mod tests {
         assert_eq!(ip_store.top100()[2], None, "Third element should be None");
     }
 
-    // Helper function - sample from array according to a triangle distribution with mode 0
-    fn sample_triangularly<X>(arr: &[X]) -> &X {
+    // Helper function - sample from array according to a triangle distribution with mode+min 0
+    fn sample_triangularly<const N: usize>(size: usize) -> Vec<usize> {
         let mut rng = thread_rng();
-        let size = arr.len() as f64;
-        let index = size - size * f64::sqrt(1.0 - rng.gen::<f64>());
-        &arr[index as usize]
+        let uniform_distro = Uniform::from(0.0..1.0);
+        let uniform_sample: Vec<f64> = rng.sample_iter(uniform_distro).take(N).collect();
+        let mut result = Vec::with_capacity(N);
+        for y in uniform_sample {
+            result.push((size as f64 * (1.0 - f64::sqrt(1.0 - y))) as usize);
+        }
+        result.try_into().unwrap()
     }
 
     #[test]
-    fn it_handles_40m_inserts() {
+    fn it_handles_40m_inserts_of_20m_ips() {
         let mut ip_store = PulleyIPStore::new();
 
         let mut rng = thread_rng();
@@ -178,9 +197,46 @@ mod tests {
         for ip in &mut ipaddrs {
             *ip = Ipv4Addr::from(rng.gen::<[u8; 4]>());
         }
-        for _ in 0..40000000 {
-            ip_store.request_handled(IpAddr::V4(*sample_triangularly(&ipaddrs)));
+
+        let sample_indices: Vec<usize> = sample_triangularly::<40000000>(ipaddrs.len() - 1);
+
+        // Measure insertions
+        let insertion_start_time = Instant::now();
+        for i in sample_indices {
+            ip_store.request_handled(IpAddr::V4(ipaddrs[i]));
         }
+        let insertion_duration = insertion_start_time.elapsed();
+        let amortized_insertion_duration = insertion_duration / 40000000;
+        println!(
+            "Insertion duration: {:?} total, or {:?} each",
+            insertion_duration, amortized_insertion_duration
+        );
+        assert!(
+            amortized_insertion_duration < Duration::from_millis(1),
+            "Should take at most 1ms to insert"
+        );
+
+        // Measure extracting top 100
+        let extraction_start_time = Instant::now();
         ip_store.top100();
+        let extraction_duration = extraction_start_time.elapsed();
+        println!("Extraction duration: {:?}", extraction_duration);
+        assert!(
+            amortized_insertion_duration < Duration::from_millis(300),
+            "Should take at most 300 ms to extract top 100"
+        );
+
+        // Sanity check
+        assert!(
+            ip_store.request_counts.len() > 15000000,
+            "Should have inserted at least 15000000 of the 20000000 values"
+        );
+
+        // Sanity check
+        let total_insertions = ip_store.request_counts.values().fold(0, |acc, v| acc + v);
+        assert_eq!(
+            total_insertions, 40000000,
+            "Should have inserted every value"
+        );
     }
 }
