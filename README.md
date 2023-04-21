@@ -12,6 +12,14 @@ This function should return the top 100 IP addresses by request count, with the 
 clear()
 This function should clear all the IP addresses and tallies. In theory, it would be called at the start of each day to forget about all IP addresses and tallies.
 
+## How to run
+
+In the unlikely case that Rust is already installed and fairly up-to-date, run `cargo test --release -- --nocapture`. 
+`--release` means that compiler optimizations *will* be performed (otherwise it can take 1min+ to handle 40 million elements in the test). `--nocapture` prevents stdout and stderr from being muted during tests.
+
+Otherwise (insert docker instructions here)
+
+
 
 ## Thoughts
 20 million is a fairly big number, especially when no database or serialization is involved. 
@@ -28,11 +36,16 @@ A more interesting policy might have a rolling count - always counting the past 
 
 Anyway - approach I'm taking is exactly the same as it would be for a much smaller one, just with a different language and more junk around it
 * Store number of hits in a hash table (this can theoretically be split up into many components as we grow but ergonomics is much better when it's all unified)
-* Keep list of top 100 ips and pointers to their frequencies
+* Keep list of top 100 ips and cache their frequencies
 * Whenever we handle a request from an already existing IP address, see if it's in the top 100. 
-  * If so, update it and re-sort list of top 100 ips.
-  * If not, see if it's bigger than 100th biggest frequency. If so, swap them and re-sort the entire list of ips according to their frequencies. Insertion sort is optimal here and in the previous substep, not that it really matters.
+  * If so, update it and partially re-sort by swapping with the first smaller element
+  * If not, see if it's bigger than 100th biggest frequency. If so, swap them, then go to previous step
+  * This is fragile - but will keep the list permanently sorted using only O(1) swapping operations. Iterating through the array (of length 100) may sound bad, but is faster than trying to hash it once
 
+Long story short, this gives O(1) performance for inserting and (more trivially) extracting the top 100 ips. In practice, on my machine, inserts take ~330ns while reading takes ~100ns (It seems like this should be faster, since it's literally just passing a reference, not sure what's going on).
 
-## How to run
+Since both are well under 1 millisecond, I'm calling it pretty OK.
+
+If nothing else this has been very educational; I've been messing around with Rust for a while but didn't really understand lifetimes and ownership until trying to do some very illegal type manipulations for this project :D
+
 

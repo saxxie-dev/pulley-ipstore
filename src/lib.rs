@@ -184,7 +184,7 @@ mod tests {
 
     // Helper function - sample from array according to a triangle distribution with mode+min 0
     fn sample_triangularly<const N: usize>(size: usize) -> Vec<usize> {
-        let mut rng = thread_rng();
+        let rng = thread_rng();
         let uniform_distro = Uniform::from(0.0..1.0);
         let uniform_sample: Vec<f64> = rng.sample_iter(uniform_distro).take(N).collect();
         let mut result = Vec::with_capacity(N);
