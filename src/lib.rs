@@ -1,46 +1,75 @@
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::IpAddr;
+
+const IP_COUNT: usize = 20000000;
+const TOP_COUNT: usize = 100;
 
 pub trait IPStore {
     fn request_handled(&mut self, ip_address: IpAddr) -> ();
-    fn top100(&self) -> [Option<IpAddr>; 100];
+    fn top100(&self) -> [Option<IpAddr>; TOP_COUNT];
     fn clear(&mut self) -> ();
 }
 
-struct PulleyIPStore<'a> {
-    request_counts: HashMap<IpAddr, &'a u32>,
-    top100_set: HashSet<IpAddr>,
-    top100_list: [Option<(IpAddr, &'a u32)>; 100],
+struct PulleyIPStore {
+    request_counts: HashMap<IpAddr, u32>,
+    top100_list: [Option<IpAddr>; TOP_COUNT],
+    top100_counts: [u32; TOP_COUNT],
+    top100_size: usize,
 }
 
-impl<'a> PulleyIPStore<'a> {
-    pub fn new() -> PulleyIPStore<'a> {
+impl PulleyIPStore {
+    pub fn new() -> PulleyIPStore {
         PulleyIPStore {
-            request_counts: HashMap::new(),
-            top100_set: HashSet::new(),
-            top100_list: [None; 100],
+            request_counts: HashMap::with_capacity(IP_COUNT),
+            top100_list: [None; TOP_COUNT],
+            top100_counts: [0; TOP_COUNT],
+            top100_size: 0,
         }
     }
 }
 
-impl<'a> IPStore for PulleyIPStore<'a> {
+impl IPStore for PulleyIPStore {
     fn request_handled(&mut self, ip_address: IpAddr) -> () {
-        let count = &1;
-        self.request_counts.insert(ip_address, count);
-        self.top100_list[self.top100_set.len()] = Some((ip_address, count));
-        self.top100_set.insert(ip_address);
+        let count = self.request_counts.entry(ip_address).or_insert(0);
+
+        let threshold = self.top100_counts[TOP_COUNT - 1];
+        let was_in_top100 = *count > threshold;
+        let was_on_threshold = *count == threshold;
+        *count += 1;
+        if was_in_top100 {
+            let previous_index = self
+                .top100_list
+                .iter()
+                .position(|&x| x == Some(ip_address))
+                .unwrap();
+            let next_index = self
+                .top100_counts
+                .iter()
+                .rev()
+                .position(|&x| x < *count)
+                .unwrap_or(0);
+            self.top100_list[previous_index] = self.top100_list[next_index];
+            self.top100_counts[previous_index] = self.top100_counts[next_index];
+            self.top100_list[next_index] = Some(ip_address);
+            self.top100_counts[next_index] = *count;
+        } else if self.top100_size < TOP_COUNT {
+            // If we are still finding first 100 IP addreses, just need to add
+            self.top100_list[self.top100_size] = Some(ip_address);
+            self.top100_counts[self.top100_size] = 1;
+            self.top100_size += 1;
+        } else if was_on_threshold {
+        }
     }
 
-    fn top100(&self) -> [Option<IpAddr>; 100] {
+    fn top100(&self) -> [Option<IpAddr>; TOP_COUNT] {
         self.top100_list
-            .map(|x| -> Option<IpAddr> { x.map(|y| -> IpAddr { y.0 }) })
     }
 
     fn clear(&mut self) -> () {
         self.request_counts = HashMap::new();
-        self.top100_list = [None; 100];
-        self.top100_set = HashSet::new();
+        self.top100_list = [None; TOP_COUNT];
+        self.top100_counts = [0; TOP_COUNT];
+        self.top100_size = 0;
     }
 }
 
@@ -128,6 +157,6 @@ mod tests {
             Some(ip1),
             "Second element should be first ip address, which was handled once"
         );
-        assert_eq!(ip_store.top100()[1], None, "Third element should be None");
+        assert_eq!(ip_store.top100()[2], None, "Third element should be None");
     }
 }
