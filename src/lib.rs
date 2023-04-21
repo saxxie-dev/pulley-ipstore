@@ -62,6 +62,7 @@ impl IPStore for PulleyIPStore {
     }
 
     fn top100(&self) -> [Option<IpAddr>; TOP_COUNT] {
+        println!("{:?}", self.top100_counts);
         self.top100_list
     }
 
@@ -158,5 +159,28 @@ mod tests {
             "Second element should be first ip address, which was handled once"
         );
         assert_eq!(ip_store.top100()[2], None, "Third element should be None");
+    }
+
+    // Helper function - sample from array according to a triangle distribution with mode 0
+    fn sample_triangularly<X>(arr: &[X]) -> &X {
+        let mut rng = thread_rng();
+        let size = arr.len() as f64;
+        let index = size - size * f64::sqrt(1.0 - rng.gen::<f64>());
+        &arr[index as usize]
+    }
+
+    #[test]
+    fn it_handles_40m_inserts() {
+        let mut ip_store = PulleyIPStore::new();
+
+        let mut rng = thread_rng();
+        let mut ipaddrs = vec![Ipv4Addr::new(0, 0, 0, 0); 20000000];
+        for ip in &mut ipaddrs {
+            *ip = Ipv4Addr::from(rng.gen::<[u8; 4]>());
+        }
+        for _ in 0..40000000 {
+            ip_store.request_handled(IpAddr::V4(*sample_triangularly(&ipaddrs)));
+        }
+        ip_store.top100();
     }
 }
