@@ -17,8 +17,8 @@ This function should clear all the IP addresses and tallies. In theory, it would
 In the unlikely case that Rust is already installed and fairly up-to-date, run `cargo test --release -- --nocapture`. 
 `--release` means that compiler optimizations *will* be performed (otherwise it can take 1min+ to handle 40 million elements in the test). `--nocapture` prevents stdout and stderr from being muted during tests.
 
-Otherwise (insert docker instructions here)
-
+Otherwise, you can also use the included dockerfile to compile and test the file: 
+`docker build -t exercise . &&  docker run exercise`
 
 
 ## Thoughts
